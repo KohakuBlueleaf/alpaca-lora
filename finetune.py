@@ -60,7 +60,6 @@ config = LoraConfig(
     lora_dropout=LORA_DROPOUT,
     bias="none",
     task_type="CAUSAL_LM",
-    modules_to_save=FULL_FINETUNE_MODULES,
 )
 model = get_peft_model(model, config)
 tokenizer.pad_token_id = 0  # unk. we want this to be different from the eos token
