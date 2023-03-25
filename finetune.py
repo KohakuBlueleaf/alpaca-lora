@@ -40,6 +40,12 @@ def train(
     lora_target_modules: List[str] = [
         "q_proj",
         "v_proj",
+        "k_proj",
+        "o_proj",
+    ],
+    lora_modules_to_save: List[str] = [
+        "model.embed_tokens",
+        "lm_head",
     ],
     # llm hyperparams
     train_on_inputs: bool = True,  # if False, masks out inputs in loss
@@ -78,6 +84,7 @@ def train(
     model = LlamaForCausalLM.from_pretrained(
         base_model,
         load_in_8bit=True,
+        llm_int8_skip_modules=lora_modules_to_save,
         device_map=device_map,
     )
 
@@ -132,8 +139,10 @@ def train(
         lora_dropout=lora_dropout,
         bias="none",
         task_type="CAUSAL_LM",
+        modules_to_save=lora_modules_to_save,
     )
-    model = get_peft_model(model, config)
+    # You can use bfloat16 if your gpu support it
+    model = get_peft_model(model, config).to(torch.float32)
 
     data = load_dataset("json", data_files=data_path)
 
@@ -153,11 +162,14 @@ def train(
         eval_dataset=val_data,
         args=transformers.TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
+            # ddp doesn't like gradient checkpointing
+            gradient_checkpointing=False if ddp else True,
             gradient_accumulation_steps=gradient_accumulation_steps,
             warmup_steps=100,
             num_train_epochs=num_epochs,
             learning_rate=learning_rate,
-            fp16=True,
+            # uncomment this line if your gpu support bf16
+            # bf16=True,
             logging_steps=10,
             evaluation_strategy="steps" if val_set_size > 0 else "no",
             save_strategy="steps",
@@ -191,11 +203,10 @@ def train(
 
 
 def generate_prompt(data_point):
+    # Remove first line since we actually don't need it.
     # sorry about the formatting disaster gotta move fast
     if data_point["input"]:
-        return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-
-### Instruction:
+        return f"""### Instruction:
 {data_point["instruction"]}
 
 ### Input:
@@ -204,9 +215,7 @@ def generate_prompt(data_point):
 ### Response:
 {data_point["output"]}"""
     else:
-        return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
-
-### Instruction:
+        return f"""### Instruction:
 {data_point["instruction"]}
 
 ### Response:

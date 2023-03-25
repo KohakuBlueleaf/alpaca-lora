@@ -40,32 +40,35 @@ def main(
             torch_dtype=torch.float16,
             device_map="auto",
         )
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            torch_dtype=torch.float16,
-        )
+        if lora_weights:
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                torch_dtype=torch.float16,
+            )
     elif device == "mps":
         model = LlamaForCausalLM.from_pretrained(
             base_model,
             device_map={"": device},
             torch_dtype=torch.float16,
         )
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            device_map={"": device},
-            torch_dtype=torch.float16,
-        )
+        if lora_weights:
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                device_map={"": device},
+                torch_dtype=torch.float16,
+            )
     else:
         model = LlamaForCausalLM.from_pretrained(
             base_model, device_map={"": device}, low_cpu_mem_usage=True
         )
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            device_map={"": device},
-        )
+        if lora_weights:
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                device_map={"": device},
+            )
 
     # unwind broken decapoda-research config
     model.config.pad_token_id = tokenizer.pad_token_id = 0  # unk
@@ -80,23 +83,21 @@ def main(
         model = torch.compile(model)
 
     def evaluate(
-        instruction,
-        input=None,
-        temperature=0.1,
-        top_p=0.75,
-        top_k=40,
-        num_beams=4,
+        prompt='',
+        temperature=0.5,
+        top_p=0.95,
+        top_k=45,
+        repetition_penalty=1.17,
         max_new_tokens=128,
         **kwargs,
     ):
-        prompt = generate_prompt(instruction, input)
         inputs = tokenizer(prompt, return_tensors="pt")
         input_ids = inputs["input_ids"].to(device)
         generation_config = GenerationConfig(
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
-            num_beams=num_beams,
+            repetition_penalty=repetition_penalty,
             **kwargs,
         )
         with torch.no_grad():
@@ -111,74 +112,122 @@ def main(
         output = tokenizer.decode(s)
         return output.split("### Response:")[1].strip()
 
-    gr.Interface(
-        fn=evaluate,
-        inputs=[
-            gr.components.Textbox(
-                lines=2, label="Instruction", placeholder="Tell me about alpacas."
-            ),
-            gr.components.Textbox(lines=2, label="Input", placeholder="none"),
-            gr.components.Slider(minimum=0, maximum=1, value=0.1, label="Temperature"),
-            gr.components.Slider(minimum=0, maximum=1, value=0.75, label="Top p"),
-            gr.components.Slider(
-                minimum=0, maximum=100, step=1, value=40, label="Top k"
-            ),
-            gr.components.Slider(minimum=1, maximum=4, step=1, value=4, label="Beams"),
-            gr.components.Slider(
-                minimum=1, maximum=2000, step=1, value=128, label="Max tokens"
-            ),
-        ],
-        outputs=[
-            gr.inputs.Textbox(
-                lines=5,
-                label="Output",
-            )
-        ],
-        title="🦙🌲 Alpaca-LoRA",
-        description="Alpaca-LoRA is a 7B-parameter LLaMA model finetuned to follow instructions. It is trained on the [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca) dataset and makes use of the Huggingface LLaMA implementation. For more information, please visit [the project's website](https://github.com/tloen/alpaca-lora).",
-    ).launch()
-    # Old testing code follows.
 
-    """
-    # testing code for readme
-    for instruction in [
-        "Tell me about alpacas.",
-        "Tell me about the president of Mexico in 2019.",
-        "Tell me about the king of France in 2019.",
-        "List all Canadian provinces in alphabetical order.",
-        "Write a Python program that prints the first 10 Fibonacci numbers.",
-        "Write a program that prints the numbers from 1 to 100. But for multiples of three print 'Fizz' instead of the number and for the multiples of five print 'Buzz'. For numbers which are multiples of both three and five print 'FizzBuzz'.",
-        "Tell me five words that rhyme with 'shock'.",
-        "Translate the sentence 'I have no mouth but I must scream' into Spanish.",
-        "Count up from 1 to 500.",
-    ]:
-        print("Instruction:", instruction)
-        print("Response:", evaluate(instruction))
-        print()
-    """
+    prompt = '''### Instruction: 
+    {}
+    ### Input:
+    {}
 
+    ### Response:'''
 
-def generate_prompt(instruction, input=None):
-    if input:
-        return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+    prompt_ins = '''### Instruction: 
+    {}
 
-### Instruction:
-{instruction}
+    ### Response:'''
 
-### Input:
-{input}
+    with gr.Blocks() as demo:
+        with gr.Row() as row:
+            with gr.Column() as col:
+                with gr.Row() and gr.Column():
+                    answer = gr.TextArea(label="Response")
+                    instruction = gr.Textbox(
+                        "", label="Instruction", placeholder="Enter instruction", multiline=True
+                    )
+                    inputs = gr.Textbox(
+                        "", label="Input", placeholder="Enter input (can be empty)", multiline=True
+                    )
+                    run = gr.Button("Run!")
+                    
+                    def run_instruction(
+                        instruction,
+                        inputs,
+                        temperature=0.5,
+                        top_p=0.95,
+                        top_k=45,
+                        repetition_penalty=1.17,
+                        max_new_tokens=128,
+                    ):
+                        if inputs.strip() == '':
+                            now_prompt = prompt_ins.format(instruction)
+                        else:
+                            now_prompt = prompt.format(instruction+'\n', inputs)
+                        
+                        response = evaluate(
+                            now_prompt, temperature, top_p, top_k, repetition_penalty, max_new_tokens
+                        )
+                        return response
+                    
+                with gr.Row() and gr.Column():
+                    temp = gr.components.Slider(minimum=0, maximum=1, value=0.5, label="Temperature")
+                    topp = gr.components.Slider(minimum=0, maximum=1, value=0.75, label="Top p")
+                    topk = gr.components.Slider(minimum=0, maximum=100, step=1, value=35, label="Top k")
+                    repp = gr.components.Slider(
+                        minimum=0, maximum=2, step=0.01, value=1.2, label="Repeat Penalty"
+                    )
+                    maxt = gr.components.Slider(
+                        minimum=1, maximum=2048, step=1, value=512, label="Max tokens"
+                    )
+                    maxh = gr.components.Slider(
+                        minimum=1, maximum=20, step=1, value=5, label="Max history messages"
+                    )
+                
+                run.click(
+                    run_instruction, 
+                    [instruction, inputs, temp, topp, topk, repp, maxt],
+                    answer
+                )
+            with gr.Column() as col:
+                chatbot = gr.Chatbot()
+                msg = gr.Textbox(label='Chat Message input')
+                clear = gr.Button("Clear")
 
-### Response:
-"""
-    else:
-        return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
+                def user(user_message, history):
+                    for idx, content in enumerate(history):
+                        history[idx] = [
+                            content[0].replace('<br>', ''),
+                            content[1].replace('<br>', '')
+                        ]
+                    user_message = user_message.replace('<br>', '')
+                    return "", history + [[user_message, None]]
 
-### Instruction:
-{instruction}
+                def bot(
+                    history,
+                    temperature=0.5,
+                    top_p=0.95,
+                    top_k=45,
+                    repetition_penalty=1.17,
+                    max_new_tokens=128,
+                    maxh=10,
+                ):
+                    hist = ''
+                    for idx, content in enumerate(history):
+                        history[idx] = [
+                            content[0].replace('<br>', ''),
+                            None if content[1] is None else content[1].replace('<br>', '')
+                        ]
+                    for user, assistant in history[:-1]:
+                        user = user
+                        assistant = assistant
+                        hist += f'User: {user}\nAssistant: {assistant}\n'
+                    now_prompt = prompt.format(hist, f"User: {history[-1][0]}")
+                    print(now_prompt)
+                    print()
+                    
+                    bot_message = evaluate(
+                        now_prompt, temperature, top_p, top_k, repetition_penalty, max_new_tokens
+                    )
+                    history[-1][1] = bot_message
+                    
+                    history = history[-maxh:]
+                    
+                    return history
 
-### Response:
-"""
+                msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+                    bot, [chatbot, temp, topp, topk, repp, maxt, maxh], chatbot
+                )
+                clear.click(lambda: None, None, chatbot, queue=False)
 
+    demo.launch()
 
 if __name__ == "__main__":
     fire.Fire(main)
