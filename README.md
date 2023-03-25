@@ -18,7 +18,8 @@ guanaco dataset: [link](https://huggingface.co/datasets/JosephusCheung/GuanacoDa
 basically as same as alpaca lora
 
 ## Example
-Todo...
+Some example of instruction-based QA and instruction-based chat
+![image](https://user-images.githubusercontent.com/59680068/227710520-b24a6a88-5982-43eb-b3ac-e1b371dc0082.png)
 
 ## Resource
 Todo...
