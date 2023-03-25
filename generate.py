@@ -128,48 +128,46 @@ def main(
     with gr.Blocks() as demo:
         with gr.Row() as row:
             with gr.Column() as col:
-                with gr.Row() and gr.Column():
-                    answer = gr.TextArea(label="Response")
-                    instruction = gr.Textbox(
-                        "", label="Instruction", placeholder="Enter instruction", multiline=True
-                    )
-                    inputs = gr.Textbox(
-                        "", label="Input", placeholder="Enter input (can be empty)", multiline=True
-                    )
-                    run = gr.Button("Run!")
+                answer = gr.TextArea(label="Response")
+                instruction = gr.Textbox(
+                    "", label="Instruction", placeholder="Enter instruction", multiline=True
+                )
+                inputs = gr.Textbox(
+                    "", label="Input", placeholder="Enter input (can be empty)", multiline=True
+                )
+                run = gr.Button("Run!")
+                
+                def run_instruction(
+                    instruction,
+                    inputs,
+                    temperature=0.5,
+                    top_p=0.95,
+                    top_k=45,
+                    repetition_penalty=1.17,
+                    max_new_tokens=128,
+                ):
+                    if inputs.strip() == '':
+                        now_prompt = PROMPT_INS.format(instruction)
+                    else:
+                        now_prompt = PROMPT.format(instruction+'\n', inputs)
                     
-                    def run_instruction(
-                        instruction,
-                        inputs,
-                        temperature=0.5,
-                        top_p=0.95,
-                        top_k=45,
-                        repetition_penalty=1.17,
-                        max_new_tokens=128,
-                    ):
-                        if inputs.strip() == '':
-                            now_prompt = PROMPT_INS.format(instruction)
-                        else:
-                            now_prompt = PROMPT.format(instruction+'\n', inputs)
-                        
-                        response = evaluate(
-                            now_prompt, temperature, top_p, top_k, repetition_penalty, max_new_tokens
-                        )
-                        return response
-                    
-                with gr.Row() and gr.Column():
-                    temp = gr.components.Slider(minimum=0, maximum=1, value=0.5, label="Temperature")
-                    topp = gr.components.Slider(minimum=0, maximum=1, value=0.75, label="Top p")
-                    topk = gr.components.Slider(minimum=0, maximum=100, step=1, value=35, label="Top k")
-                    repp = gr.components.Slider(
-                        minimum=0, maximum=2, step=0.01, value=1.2, label="Repeat Penalty"
+                    response = evaluate(
+                        now_prompt, temperature, top_p, top_k, repetition_penalty, max_new_tokens
                     )
-                    maxt = gr.components.Slider(
-                        minimum=1, maximum=2048, step=1, value=512, label="Max tokens"
-                    )
-                    maxh = gr.components.Slider(
-                        minimum=1, maximum=20, step=1, value=5, label="Max history messages"
-                    )
+                    return response
+                
+                temp = gr.components.Slider(minimum=0, maximum=1, value=0.5, label="Temperature")
+                topp = gr.components.Slider(minimum=0, maximum=1, value=0.75, label="Top p")
+                topk = gr.components.Slider(minimum=0, maximum=100, step=1, value=35, label="Top k")
+                repp = gr.components.Slider(
+                    minimum=0, maximum=2, step=0.01, value=1.2, label="Repeat Penalty"
+                )
+                maxt = gr.components.Slider(
+                    minimum=1, maximum=2048, step=1, value=512, label="Max tokens"
+                )
+                maxh = gr.components.Slider(
+                    minimum=1, maximum=20, step=1, value=5, label="Max history messages"
+                )
                 
                 run.click(
                     run_instruction, 
@@ -177,7 +175,14 @@ def main(
                     answer
                 )
             with gr.Column() as col:
-                chatbot = gr.Chatbot()
+                chat_height = gr.components.Slider(
+                    minimum=120, maximum=2000, step=10, value=500, label="Max history messages"
+                )
+                chat_height.change(
+                    None, chat_height, 
+                    _js="""(h)=>{chatbot.style.height = h + "px";}"""
+                )
+                chatbot = gr.Chatbot(label="Guanaco ChatBot", elem_id = "chatbot")
                 msg = gr.Textbox(label='Chat Message input')
                 clear = gr.Button("Clear")
 
@@ -226,7 +231,12 @@ def main(
                     bot, [chatbot, temp, topp, topk, repp, maxt, maxh], chatbot
                 )
                 clear.click(lambda: None, None, chatbot, queue=False)
-
+        demo.load(None, chat_height, _js="""
+(height)=>{
+    chatbot.style.height = height + "px";
+    document.querySelector('#chatbot .wrap').style.maxHeight = "calc(100% - 45px)"
+}
+        """)
     demo.launch()
 
 if __name__ == "__main__":
