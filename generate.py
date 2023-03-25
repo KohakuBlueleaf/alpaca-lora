@@ -23,6 +23,19 @@ except:
     pass
 
 
+PROMPT = '''### Instruction: 
+{}
+### Input:
+{}
+
+### Response:'''
+
+PROMPT_INS = '''### Instruction: 
+{}
+
+### Response:'''
+
+
 def main(
     load_8bit: bool = False,
     base_model: str = "",
@@ -111,20 +124,7 @@ def main(
         s = generation_output.sequences[0]
         output = tokenizer.decode(s)
         return output.split("### Response:")[1].strip()
-
-
-    prompt = '''### Instruction: 
-    {}
-    ### Input:
-    {}
-
-    ### Response:'''
-
-    prompt_ins = '''### Instruction: 
-    {}
-
-    ### Response:'''
-
+    
     with gr.Blocks() as demo:
         with gr.Row() as row:
             with gr.Column() as col:
@@ -148,9 +148,9 @@ def main(
                         max_new_tokens=128,
                     ):
                         if inputs.strip() == '':
-                            now_prompt = prompt_ins.format(instruction)
+                            now_prompt = PROMPT_INS.format(instruction)
                         else:
-                            now_prompt = prompt.format(instruction+'\n', inputs)
+                            now_prompt = PROMPT.format(instruction+'\n', inputs)
                         
                         response = evaluate(
                             now_prompt, temperature, top_p, top_k, repetition_penalty, max_new_tokens
@@ -209,7 +209,7 @@ def main(
                         user = user
                         assistant = assistant
                         hist += f'User: {user}\nAssistant: {assistant}\n'
-                    now_prompt = prompt.format(hist, f"User: {history[-1][0]}")
+                    now_prompt = PROMPT.format(hist, f"User: {history[-1][0]}")
                     print(now_prompt)
                     print()
                     
