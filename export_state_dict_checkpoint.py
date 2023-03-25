@@ -36,6 +36,10 @@ lora_model = PeftModel.from_pretrained(
 for layer in lora_model.base_model.model.model.layers:
     layer.self_attn.q_proj.merge_weights = True
     layer.self_attn.v_proj.merge_weights = True
+    layer.self_attn.k_proj.merge_weights = True
+    layer.self_attn.o_proj.merge_weights = True
+lora_model.base_model.model.model.embed_tokens.merge_weights = True
+lora_model.base_model.model.lm_head.merge_weights = True
 
 lora_model.train(False)
 
