@@ -1,6 +1,6 @@
 ## Guanaco-lora: LoRA for trainin Multilingual Instruction-following LM based on LLaMA
 
-- 🤗 **Try the pretrained model out [here](https://huggingface.co/KBlueLeaf/guanaco-7B-leh)**
+- 🤗 **Try the pretrained model out [here](https://huggingface.co/KBlueLeaf/guanaco-7b-leh-v2)**
 
 This repository is forked from alpaca-lora, and introduce a method to train more modules like embed/head with lora.
 
